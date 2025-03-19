@@ -142,8 +142,6 @@ class MyCrawler:
 - 不对数据准确性做担保
 
 ---
-
 🛠️ 遇到问题？请提交 [Issue](https://github.com/yourname/tech-news-monitor/issues)  
 💻 开发文档：见 `docs/` 目录  
 📧 联系作者：fishydp7456@gmail.com
-```

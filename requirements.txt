@@ -5,3 +5,5 @@ requests
 scikit-learn
 jieba
 sqlalchemy
+feedparser
+python-dateutil
