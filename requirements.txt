@@ -1,0 +1,7 @@
+apscheduler
+beautifulsoup4
+python-dotenv
+requests
+scikit-learn
+jieba
+sqlalchemy
