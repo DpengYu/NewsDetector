@@ -6,6 +6,7 @@ from core.processors import TechAnalyzer  # 技术分析模块
 from core.database import NewsDatabase  # 数据库操作类
 from utils.logger import configure_logging  # 日志配置工具
 from utils.metrics import REQUEST_COUNTER, PROCESS_TIME, ITEMS_GAUGE  # 监控指标
+from prometheus_client import start_http_server # 导入 Prometheus 监控服务
 
 configure_logging()  # 调用自定义方法配置日志格式、存储路径等
 # 作用：统一日志输出格式，确保INFO/WARNING/ERROR分级记录

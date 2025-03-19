@@ -1,13 +1,7 @@
-"""
-NewsAPI官方数据源采集模块
-实现与NewsAPI的对接和标准化数据输出
-"""
-
 import requests
 from typing import List, Dict
 from config.settings import settings
 from utils.logger import get_logger
-from utils.helpers import validate_url
 
 logger = get_logger(__name__)
 
@@ -17,7 +11,7 @@ class NewsAPICrawler:
     BASE_URL = "https://newsapi.org/v2/top-headlines"
     
     def __init__(self):
-        self.api_key = settings.NEWS_API_KEY
+        self.api_key = settings.NEWS_API_KEY  # 使用 settings.NEWS_API_KEY
         self.session = requests.Session()
         # 配置请求重试策略
         self.session.mount('https://', requests.adapters.HTTPAdapter(max_retries=3))

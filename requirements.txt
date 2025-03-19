@@ -7,3 +7,4 @@ jieba
 sqlalchemy
 feedparser
 python-dateutil
+prometheus_client

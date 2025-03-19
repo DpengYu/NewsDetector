@@ -1,0 +1,55 @@
+# 忽略 Python 编译文件和缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略虚拟环境目录
+venv/
+env/
+.venv/
+ENV/
+
+# 忽略 IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 忽略日志文件
+*.log
+logs/
+
+# 忽略数据库文件
+*.db
+*.sqlite3
+
+# 忽略敏感文件
+.env
+.secrets
+*.key
+*.pem
+
+# 忽略测试生成的临时文件
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 忽略打包文件
+dist/
+build/
+*.egg-info/
+
+# 忽略 macOS 系统文件
+.DS_Store
+
+# 忽略 Windows 系统文件
+Thumbs.db
+Desktop.ini
+
+# 忽略 Jupyter Notebook 检查点
+.ipynb_checkpoints/
+
+# 忽略其他临时文件
+*.tmp
+*.bak
+*.cache

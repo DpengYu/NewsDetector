@@ -1,36 +1,34 @@
-"""
-全局配置管理模块
-处理环境变量加载和基础路径配置
-"""
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
 
 # 加载环境变量
-BASE_DIR = Path(__file__).resolve().parent.parent # 项目根目录
+BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 # 定义 settings 对象
 class Settings:
+    # NewsAPI 配置
+    NEWS_API_KEY = os.getenv("NEWS_API_KEY")  # 从环境变量加载
+
     # 数据源配置
     TECH_SOURCES = {
-        "TechCrunch": os.getenv("TECHCRUNCH_RSS"), # TechCrunch的RSS源
-        "GitHubTrending": "https://github.com/trending" # GitHub趋势页面
+        "TechCrunch": os.getenv("TECHCRUNCH_RSS"),
+        "GitHubTrending": "https://github.com/trending"
     }
 
     # 数据库配置
     DATABASE_CONFIG = {
-        'db_path': BASE_DIR / "data/news.db", # SQLite数据库存储路径
-        'table_name': 'tech_news' # 数据表名称
+        'db_path': BASE_DIR / "data/news.db",
+        'table_name': 'tech_news'
     }
 
-    # 邮件通知服务配置
+    # 邮件配置
     EMAIL_CONFIG = {
-        'smtp_server': os.getenv("SMTP_SERVER"),  # SMTP服务器地址
-        'port': 587,  # TLS端口号
-        'sender': os.getenv("NOTICE_EMAIL"), # 发件人邮箱
-        'password': os.getenv("EMAIL_PASSWORD")  # 邮箱授权码
+        'smtp_server': os.getenv("SMTP_SERVER"),
+        'port': 587,
+        'sender': os.getenv("NOTICE_EMAIL"),
+        'password': os.getenv("EMAIL_PASSWORD")
     }
 
 # 导出 settings 对象
