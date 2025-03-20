@@ -1,6 +1,7 @@
 """
 邮件通知服务模块
 使用 Gmail API 和 OAuth 2.0 凭据发送热点新闻摘要
+支持无头模式（Headless Mode）和手动令牌加载
 """
 
 import sys
@@ -68,6 +69,7 @@ class EmailSender:
         # 检查是否有已保存的凭据
         if os.path.exists('token.json'):
             creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        
         # 如果没有有效凭据，引导用户登录
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
@@ -87,8 +89,9 @@ class EmailSender:
                     },
                     SCOPES
                 )
-                # 启动本地服务器，引导用户授权
-                creds = flow.run_local_server(port=0)
+                # 使用无头模式（Console 模式）进行认证
+                creds = flow.run_console()
+            
             # 保存凭据
             with open('token.json', 'w') as token:
                 token.write(creds.to_json())
