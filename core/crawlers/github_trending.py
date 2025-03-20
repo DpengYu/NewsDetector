@@ -23,6 +23,18 @@ class GitHubTrendingCrawler:
         # 配置请求重试策略（最大重试3次）
         self.session.mount('https://', requests.adapters.HTTPAdapter(max_retries=3))
 
+    def fetch(self):
+        try:
+            url = "https://github.com/trending"
+            resp = self.session.get(url, headers=self.headers, timeout=15)
+            resp.raise_for_status()
+            
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            return self._parse(soup)
+        except Exception as e:
+            logger.error(f"GitHub trending爬取失败: {str(e)}")
+            return []
+
     def get_trending_repos(self) -> list:
         """
         获取当前趋势仓库列表

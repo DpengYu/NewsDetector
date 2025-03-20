@@ -16,6 +16,7 @@ class NewsArticle(Base):
     url = Column(String(1000), unique=True, nullable=False)  # URL唯一约束
     description = Column(Text)
     source = Column(String(100), index=True)  # 来源索引
+    author = Column(String(100)) #作者
     published_at = Column(DateTime(timezone=True), index=True)  # 时间索引
     content_hash = Column(String(32), index=True)  # 内容哈希索引
     

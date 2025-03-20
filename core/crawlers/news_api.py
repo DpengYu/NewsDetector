@@ -3,6 +3,17 @@ from typing import List, Dict
 from config.settings import settings
 from utils.logger import get_logger
 
+def validate_url(url: str) -> bool:
+    """
+    验证URL格式合法性
+    参数:
+        url: 待验证的URL字符串
+    返回:
+        bool: 是否合法
+    """
+    """验证URL是否合法"""
+    return url.startswith(('http://', 'https://'))
+
 logger = get_logger(__name__)
 
 class NewsAPICrawler:

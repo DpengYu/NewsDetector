@@ -2,6 +2,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .models import Base, NewsArticle
 from config.settings import settings
+from core.processors.cleaner import DataCleaner
 
 class NewsDatabase:
     """数据库操作类"""
@@ -19,11 +20,12 @@ class NewsDatabase:
         # 自动创建数据表（如果不存在）
         Base.metadata.create_all(self.engine)
 
-    def save_batch(self, articles: list):
-        """批量保存新闻数据"""
-        session = self.Session()
+    def save_batch(self, articles):
         try:
-            objs = [NewsArticle(**item) for item in articles]
+            # 确保数据已清洗
+            cleaned_articles = DataCleaner().normalize_data(articles)
+            objs = [NewsArticle(**item) for item in cleaned_articles]
+            session = self.Session()
             session.bulk_save_objects(objs)
             session.commit()
         except Exception as e:
