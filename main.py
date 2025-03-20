@@ -8,6 +8,7 @@ from utils.logger import configure_logging, get_logger
 from utils.metrics import REQUEST_COUNTER, PROCESS_TIME, ITEMS_GAUGE
 from prometheus_client import start_http_server
 from core.processors.cleaner import DataCleaner
+from core.notification import EmailSender
 
 # 配置日志
 configure_logging()
@@ -21,6 +22,7 @@ class TechNewsMonitor:
         
         self.analyzer = TechAnalyzer()
         self.db = NewsDatabase()
+        self.sender = EmailSender()
         self.crawlers = [
             GitHubTrendingCrawler(),
             NewsAPICrawler()
@@ -94,6 +96,7 @@ class TechNewsMonitor:
             PROCESS_TIME.labels('save').set_to_current_time()
             if news_data:
                 self.db.save_batch(news_data)
+                self.sender.send_digest(news_data)
                 logger.info(f"数据存储完成，写入量：{len(news_data)}条")
             else:
                 logger.warning("未采集到有效数据，跳过存储步骤")
