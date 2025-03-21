@@ -9,7 +9,7 @@ from utils.logger import configure_logging, get_logger
 from utils.metrics import REQUEST_COUNTER, PROCESS_TIME, ITEMS_GAUGE
 from prometheus_client import start_http_server
 from core.processors.cleaner import DataCleaner
-from core.notification import EmailSender
+from core.notification import EmailSender,EmailSenderAI
 from dotenv import load_dotenv
 
 # 配置日志
@@ -26,12 +26,17 @@ class TechNewsMonitor:
         
         self.analyzer = TechAnalyzer()
         self.db = NewsDatabase()
-        self.sender = EmailSender()
         self.crawlers = [
             GitHubTrendingCrawler(),
             NewsAPICrawler()
         ]
-        self.email_sender = EmailSender() if os.getenv('ENABLE_EMAIL', 'false').lower() == 'true' else None
+        if os.getenv('ENABLE_EMAIL', 'false').lower() == 'true':
+            if os.getenv('EMAIL_AI_SENDER', 'false').lower() == 'true':
+                self.email_sender = EmailSenderAI()
+            else:
+                self.email_sender = EmailSender()
+        else:
+            self.email_sender = None
         logger.info("初始化完成：分析器、数据库、爬虫已加载")
 
     def collect_news(self):
