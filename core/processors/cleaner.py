@@ -70,6 +70,7 @@ class DataCleaner:
             'description': DataCleaner.clean_html(article.get('description', '')),
             'source': article.get('source', 'Unknown'),
             'author': article.get('author', 'Anonymous'),
+            'today_stars':article.get('today_stars', ''),
             'published_at': DataCleaner.parse_datetime(article.get('published_at'))
         }
         return cleaned

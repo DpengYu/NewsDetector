@@ -96,7 +96,7 @@ class TechNewsMonitor:
             # 阶段1：数据采集与过滤
             PROCESS_TIME.labels('collect').set_to_current_time()
             news_data = self.collect_news()
-            
+
             # 阶段2：数据存储
             PROCESS_TIME.labels('save').set_to_current_time()
             if news_data:

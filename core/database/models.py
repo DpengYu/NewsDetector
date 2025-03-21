@@ -13,10 +13,11 @@ class NewsArticle(Base):
     
     id = Column(Integer, primary_key=True)
     title = Column(String(500), nullable=False)
-    url = Column(String(1000), unique=True, nullable=False)  # URL唯一约束
+    url = Column(String(500), unique=True, nullable=False)  # URL唯一约束
     description = Column(Text)
     source = Column(String(100), index=True)  # 来源索引
     author = Column(String(100)) #作者
+    today_stars = Column(Integer) #今日star数
     published_at = Column(DateTime(timezone=True), index=True)  # 时间索引
     content_hash = Column(String(32), index=True)  # 内容哈希索引
     

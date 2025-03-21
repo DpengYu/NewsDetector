@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 class EmailSender:
     """邮件发送器"""
     
-    TEMPLATE = """
+    TEMPLATE_NEWS = """
     <html>
     <body>
         <h2>科技热点速递 {{ date }}</h2>
@@ -52,6 +52,23 @@ class EmailSender:
     </html>
     """
     
+    TEMPLATE_GITHUB = """
+    <html>
+    <body>
+        <h2>GitHub热点关注 {{ date }}</h2>
+        {% for item in news[:5] %}  <!-- 限制链接数量 -->
+        <div style="margin-bottom: 20px;">
+        <h3>{{ item.title|e }}</h3>  <!-- 转义特殊字符 -->
+        <p>来源：{{ item.source|e }} | 今日新增star：{{ item.today_stars }}</p>
+        <p>{{ item.description[:100]|e }}...</p>
+        <a href="{{ item.url|e }}">阅读全文</a>
+        </div>
+        {% endfor %}
+        <hr>
+    </body>
+    </html>
+    """
+
     def __init__(self):
         """初始化邮件发送器"""
         self.email_type = os.getenv('EMAIL_TYPE', 'gmail').lower()
@@ -66,11 +83,24 @@ class EmailSender:
             
     def _render_html(self, news: List[Dict]) -> str:
         """渲染邮件 HTML 内容"""
-        template = Template(self.TEMPLATE)
-        return template.render(
-            news=news[:10],  # 最多发送 10 条
+        template_news = Template(self.TEMPLATE_NEWS)
+        template_github = Template(self.TEMPLATE_GITHUB)
+        # 过滤出不同类型的新闻
+        normal_news = [item for item in news if item.get("source") == "NewsAPI"]
+        github_news = [item for item in news if item.get("source") == "GitHub"]
+        # 渲染 GitHub 新闻
+        github_content = template_github.render(
+            news=github_news[:10],  # 最多发送 10 条
             date=datetime.now().strftime("%Y-%m-%d")
         )
+        # 渲染普通新闻
+        news_content = template_news.render(
+            news=normal_news[:10],  # 最多发送 10 条
+            date=datetime.now().strftime("%Y-%m-%d")
+        )
+        # 合并内容
+        contents = github_content + news_content
+        return contents
 
     def _init_gmail(self):
         """初始化 Gmail 配置"""
@@ -136,7 +166,10 @@ class EmailSender:
         try:
             msg = self._build_email(news)
             # 发送邮件
-            self._send_via_qqmail(msg)
+            if self.email_type == 'gmail':
+                self._send_via_gmail(msg)
+            elif self.email_type == 'qqmail':
+                self._send_via_qqmail(msg)
         except Exception as e:
             logger.error(f"邮件内容生成失败: {str(e)}")
             raise

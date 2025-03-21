@@ -1,8 +1,4 @@
-"""
-GitHub趋势仓库爬虫模块
-实现GitHub趋势页面的数据抓取和解析
-"""
-
+import re
 import requests
 from bs4 import BeautifulSoup
 from config import settings
@@ -10,69 +6,89 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+def extract_star_number(text: str) -> int:
+    """从文本中提取星星数量"""
+    match = re.search(r'[\d,]+', text)
+    if match:
+        return int(match.group().replace(',', ''))
+    return 0
+
 class GitHubTrendingCrawler:
-    """GitHub趋势仓库采集器"""
+    """GitHub趋势仓库采集器（支持打印未解析的完整文本）"""
     
     def __init__(self):
-        """初始化请求会话和头信息"""
         self.headers = {
-            # 合规的User-Agent声明
-            'User-Agent': 'TechNewsMonitor/1.0 (+https://github.com/your_repo)'
+            'User-Agent': 'TechNewsMonitor/1.0 (+https://github.com/your_repo)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
         }
-        self.session = requests.Session()  # 复用TCP连接的会话对象
-        # 配置请求重试策略（最大重试3次）
+        self.session = requests.Session()
         self.session.mount('https://', requests.adapters.HTTPAdapter(max_retries=3))
 
-    def fetch(self):
-        try:
-            url = "https://github.com/trending"
-            resp = self.session.get(url, headers=self.headers, timeout=15)
-            resp.raise_for_status()
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            return self._parse(soup)
-        except Exception as e:
-            logger.error(f"GitHub trending爬取失败: {str(e)}")
-            return []
-
-    def get_trending_repos(self) -> list:
+    def fetch(self) -> list:
         """
         获取当前趋势仓库列表
         返回:
-            list: 仓库信息字典列表，格式为
-                  [{'title':..., 'url':..., 'description':...}]
+            list: 按今日star数降序排列的仓库列表
         """
         try:
             resp = self.session.get(
                 settings.TECH_SOURCES["GitHubTrending"],
                 headers=self.headers,
-                timeout=15  # 连接超时15秒
+                timeout=15
             )
-            resp.raise_for_status()  # 自动处理HTTP错误状态码
-            
-            # 使用BeautifulSoup解析HTML
-            soup = BeautifulSoup(resp.text, 'html.parser')
+            resp.raise_for_status()
+
+            # 打印未解析的完整HTML文本
+            # logger.info(f"未解析的完整HTML文本： {resp.text}")
+
+            soup = BeautifulSoup(resp.text, 'lxml')
             return self._parse(soup)
         except Exception as e:
             logger.error(f"GitHub trending爬取失败: {str(e)}")
-            return []  # 失败时返回空列表保证系统鲁棒性
+            return []
 
     def _parse(self, soup: BeautifulSoup) -> list:
-        """
-        解析页面内容抽取仓库信息
-        参数:
-            soup: BeautifulSoup解析后的文档对象
-        返回:
-            list: 解析后的仓库信息列表
-        """
+        """解析页面并提取仓库信息"""
         repos = []
-        # 使用CSS选择器定位article元素
-        for article in soup.select('article'):
+        
+        for article in soup.select('article.Box-row'):
+            # 基础信息解析
             repo = {
-                'title': article.h2.text.strip(),  # 仓库标题
-                'url': "https://github.com" + article.h2.a['href'],  # 完整URL
-                'description': article.p.text.strip() if article.p else "", # 描述
-                'source': 'GitHub'  # 固定数据来源标识
+                'title': article.h2.get_text(strip=True),
+                'url': "https://github.com" + article.h2.a['href'],
+                'description': (article.p.get_text(strip=True) 
+                               if article.p else ""),
+                'source': 'GitHub'
             }
+
+            # Star数量解析
+            star_stats = article.select('div.f6.color-fg-muted.mt-2 > span')
+            
+            for span in star_stats:
+                text = span.get_text(strip=True).lower()
+                if 'star' in text:
+                    if 'today' in text:
+                        today_stars = extract_star_number(text)
+
+            repo.update({
+                'today_stars': today_stars
+            })
             repos.append(repo)
-        return repos[:10]  # 返回前10条避免数据量过大
+
+        # 按今日star数降序排序
+        sorted_repos = sorted(
+            repos,
+            key=lambda x: x['today_stars'],
+            reverse=True
+        )
+        
+        return sorted_repos[:10]  # 返回Top10
+
+# 使用示例
+if __name__ == "__main__":
+    crawler = GitHubTrendingCrawler()
+    trending_repos = crawler.fetch()
+    for idx, repo in enumerate(trending_repos, 1):
+        print(f"\n{idx}. {repo['title']}")
+        print(f"今日新增：{repo['today_stars']} stars")
+        print(f"描述：{repo['description']}")
