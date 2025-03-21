@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from .models import Base, NewsArticle
 from config.settings import settings
 from core.processors.cleaner import DataCleaner
+from sqlalchemy.dialects.sqlite import insert
 
 class NewsDatabase:
     """数据库操作类"""
@@ -24,9 +25,10 @@ class NewsDatabase:
         try:
             # 确保数据已清洗
             cleaned_articles = DataCleaner().normalize_data(articles)
-            objs = [NewsArticle(**item) for item in cleaned_articles]
+            # 使用 INSERT OR IGNORE 插入数据
             session = self.Session()
-            session.bulk_save_objects(objs)
+            stmt = insert(NewsArticle).values(cleaned_articles).on_conflict_do_nothing(index_elements=['url'])
+            session.execute(stmt)
             session.commit()
         except Exception as e:
             session.rollback()
