@@ -12,7 +12,6 @@ import certifi
 import smtplib
 import ssl
 from json import JSONDecodeError
-from zhipuai import ZhipuAI
 from urllib3.util.ssl_ import create_urllib3_context
 from pathlib import Path
 from datetime import datetime
@@ -29,6 +28,8 @@ from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 from utils.logger import get_logger
 
+from google import genai
+from zhipuai import ZhipuAI
 
 # 加载环境变量
 load_dotenv()
@@ -44,6 +45,8 @@ class EmailSenderAI:
         self.recipients = os.getenv('RECIPIENTS', '').split(',')
         self.template_env = self._init_template_env()
         self.zhipu_api_key = os.getenv('ZHIPU_API_KEY')
+        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
+        self.ai_mode = os.getenv('AI_MODE')
 
         if self.email_type == 'gmail':
             self._init_gmail()
@@ -116,7 +119,6 @@ class EmailSenderAI:
             logger.warning("未配置智谱API密钥")
             return {"title": "技术摘要", "overview": ""}
 
-        client = ZhipuAI(api_key=self.zhipu_api_key)
         try:
                 # 在prompt中明确要求JSON格式
             prompt = f"""请严格按照以下JSON格式输出：{{
@@ -143,24 +145,84 @@ class EmailSenderAI:
             请根据以下新闻数据生成内容：
             {json.dumps(news[:15], ensure_ascii=False, indent=2)}"""
 
-            # 正确的消息体格式
-            response = client.chat.completions.create(
-                model="glm-4-flash",  # 使用官方支持的模型名称
-                messages=[
-                    {
-                        "role": "user",  # 必需字段
-                        "content": prompt  # 必需字段
-                    }
-                ],
-                temperature=0.3
-            )
-            
-            # 解析响应
-            return self._parse_ai_response(response)
+            if self.ai_mode == "gemini":
+                # gemini 2
+                client = genai.Client(api_key=self.gemini_api_key)
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash", contents=prompt)
+                return self._parse_gemini_response(response)
+            else:
+                # 智谱AI    
+                client = ZhipuAI(api_key=self.zhipu_api_key)
+                response = client.chat.completions.create(
+                    model="glm-4-flash",  # 使用官方支持的模型名称
+                    messages=[
+                        {
+                            "role": "user",  # 必需字段
+                            "content": prompt  # 必需字段
+                        }
+                    ],
+                    temperature=0.3
+                )
+                return self._parse_zhipu_response(response)
         except Exception as e:
             logger.error(f"AI内容生成失败: {str(e)}")
             return {"title": "技术摘要", "overview": ""}
 
+    def _parse_gemini_response(self, response) -> Dict:
+        """解析Gemini响应"""
+        try:
+            # 验证候选内容存在性
+            if not response.candidates:
+                logger.error("Gemini未返回有效候选内容")
+                return {"title": "无候选内容", "overview": ""}
+
+            # 提取首个候选的文本内容
+            candidate = response.candidates[0]
+            parts = [part.text for part in candidate.content.parts]
+            raw_content = "".join(parts).strip()
+
+            # 记录原始响应（调试用）
+            logger.debug(f"Gemini原始响应：{raw_content[:2000]}...")
+
+            # 空内容处理
+            if not raw_content:
+                logger.error("收到空响应内容")
+                return {"title": "空响应", "overview": ""}
+
+            # 智能提取JSON内容
+            start_idx = raw_content.find('{')
+            end_idx = raw_content.rfind('}')
+            if start_idx == -1 or end_idx == -1:
+                logger.error("未检测到JSON结构")
+                return {"title": "格式错误", "overview": raw_content[:500]}
+
+            json_str = raw_content[start_idx:end_idx+1]
+            return json.loads(json_str)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析失败 | 错误位置：{e.pos} | 内容片段：{json_str[e.pos-30:e.pos+30]}")
+            return {"title": "解析失败", "overview": raw_content[:500]}
+        except Exception as e:
+            logger.error(f"解析异常：{str(e)}")
+            return {"title": "系统错误", "overview": ""}
+
+    def _parse_raw_content(self, raw: str) -> Dict:
+        """通用文本解析"""
+        try:
+            return json.loads(raw)
+        except JSONDecodeError:
+            # 智能提取JSON内容
+            start = raw.find('{')
+            end = raw.rfind('}')
+            if start != -1 and end != -1:
+                return json.loads(raw[start:end+1])
+            else:
+                return {
+                    "title": "自动生成标题",
+                    "overview": raw[:500],
+                    "translations": {}
+                }
 
     def _parse_ai_response(self, response) -> Dict:
         """增强版JSON解析"""

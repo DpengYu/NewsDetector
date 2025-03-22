@@ -16,3 +16,4 @@ python-dotenv
 jinja2
 lxml
 zhipuai
+google-genai
