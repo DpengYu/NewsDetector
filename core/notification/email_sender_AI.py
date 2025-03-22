@@ -11,6 +11,8 @@ import json
 import certifi
 import smtplib
 import ssl
+from json import JSONDecodeError
+from zhipuai import ZhipuAI
 from urllib3.util.ssl_ import create_urllib3_context
 from pathlib import Path
 from datetime import datetime
@@ -110,118 +112,94 @@ class EmailSenderAI:
             return value
 
     def _generate_ai_content(self, news: List[Dict]) -> Dict:
-        """生成AI内容（带重试机制）"""
         if not self.zhipu_api_key:
-            logger.warning("ZHIPU_API_KEY not configured, skipping AI content")
-            return {"title": "Tech Digest", "overview": ""}
+            logger.warning("未配置智谱API密钥")
+            return {"title": "技术摘要", "overview": ""}
 
-        # 明确定义headers
-        headers = {
-            "Authorization": f"Bearer {self.zhipu_api_key.strip()}",
-            "Content-Type": "application/json"
-        }
-
-        # 序列化新闻数据
+        client = ZhipuAI(api_key=self.zhipu_api_key)
         try:
-            news_data = json.dumps(news[:15], 
-                ensure_ascii=False, 
-                indent=2,
-                default=str  # 处理无法序列化的字段
+                # 在prompt中明确要求JSON格式
+            prompt = f"""请严格按照以下JSON格式输出：{{
+            "title": "总结内容，生成趣味性标题，标题内容必须与新闻内容相关(30字以内，带有emoj)",
+            "overview": "今日热点及趋势总结...（一定要在300字以上）",
+            "translations": {{
+                翻译所有新闻数据的标题和摘要（包括source为github或newsapi），以以下格数输出
+                "原标题1": {{
+                    "translated_title": "中文标题",
+                    "translated_description": "中文摘要"
+                    }}
+                "原标题2": {{
+                "translated_title": "中文标题",
+                "translated_description": "中文摘要"
+                }}
+                “...”
+                “原标题n”{{
+                "translated_title": "中文标题",
+                "translated_description": "中文摘要"   
+                }}
+                }}
+            }}
+
+            请根据以下新闻数据生成内容：
+            {json.dumps(news[:15], ensure_ascii=False, indent=2)}"""
+
+            # 正确的消息体格式
+            response = client.chat.completions.create(
+                model="glm-4-flash",  # 使用官方支持的模型名称
+                messages=[
+                    {
+                        "role": "user",  # 必需字段
+                        "content": prompt  # 必需字段
+                    }
+                ],
+                temperature=0.3
             )
-            prompt = f"""请执行以下任务：
-            1. 生成吸引人的邮件标题（20字内，包含emoji）
-            2. 总结技术趋势（120字内，带3个相关emoji）
-            3. 专业翻译标题和摘要（保留术语）
             
-            新闻数据：
-            {json.dumps(news[:15], ensure_ascii=False, indent=2)}
-            
-            输出JSON格式：
-            {{
-                "title": "生成标题",
-                "overview": "趋势总结...",
-                "translations": {{
-                    "原标题1": {{
-                        "translated_title": "中文标题",
-                        "translated_description": "中文摘要"
-                        }},
-                        "原标题2": {{ ... }}
-                        }}
-                        }}"""
-            payload = {
-                "model": "chatglm-pro",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3
-            }
+            # 解析响应
+            return self._parse_ai_response(response)
         except Exception as e:
-            logger.error(f"构造请求负载失败: {str(e)}")
-            # 降级为最小payload
-            payload = {
-                "model": "chatglm-pro",
-                "messages": [{"role": "user", "content": "生成默认摘要"}],
-                "temperature": 0.5
-            }
-        for attempt in range(3):
-            try:
-    # 创建自定义SSL上下文
-                ssl_context = create_urllib3_context()
-                ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-                
-                # 创建适配器
-                session = requests.Session()
-                session.mount("https://", requests.adapters.HTTPAdapter(max_retries=3))
-                # 在请求中使用
-                response = requests.post(
-                    "https://api.zhipuai.com/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=15,
-                    verify=certifi.where(),
-                )
-                response.raise_for_status()
-                return self._parse_ai_response(response.json())
-            except Exception as e:
-                logger.warning(f"AI API attempt {attempt+1} failed: {str(e)}")
-                if attempt == 2:
-                    logger.error("All AI API attempts failed")
-                    return {"title": "Tech Digest", "overview": ""}
+            logger.error(f"AI内容生成失败: {str(e)}")
+            return {"title": "技术摘要", "overview": ""}
 
 
-    def _parse_ai_response(self, response: Dict) -> Dict:
-        """解析AI响应"""
+    def _parse_ai_response(self, response) -> Dict:
+        """增强版JSON解析"""
         try:
-            content = json.loads(response['choices'][0]['message']['content'])
+            raw_content = response.choices[0].message.content
+            
+            # 记录原始响应（调试用）
+            logger.debug(f"原始响应内容：{raw_content[:5000]}...")  # 截断长内容
+            
+            # 预处理非法字符
+            cleaned_content = raw_content.strip()
+            cleaned_content = cleaned_content.replace('\x00', '').replace('\ufeff', '')
+            
+            # 处理多JSON对象情况
+            if cleaned_content.count('{') > 1:
+                first_brace = cleaned_content.find('{')
+                last_brace = cleaned_content.rfind('}')
+                cleaned_content = cleaned_content[first_brace:last_brace+1]
+            
+            # 解析JSON
+            content = json.loads(cleaned_content)
+            
+            # 验证必需字段
+            if not isinstance(content.get("translations", {}), dict):
+                raise ValueError("translations字段格式错误")
+                
             return {
-                "title": content.get("title", "Tech Digest"),
+                "title": content.get("title", "技术摘要"),
                 "overview": content.get("overview", ""),
                 "translations": content.get("translations", {})
             }
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析失败 | 错误位置：{e.pos} | 内容片段：{cleaned_content[e.pos-30:e.pos+30]}")
+            return {"title": "解析失败", "overview": "", "translations": {}}
         except Exception as e:
-            logger.error(f"Failed to parse AI response: {str(e)}")
-            return {"title": "Tech Digest", "overview": "", "translations": {}}
+            logger.error(f"响应解析异常：{str(e)}", exc_info=True)
+            return {"title": "技术摘要", "overview": "", "translations": {}}
 
-
-    def _render_html(self, news: List[Dict], overview: str) -> str:
-        """渲染邮件 HTML 内容"""
-        template_news = Template(self.TEMPLATE_NEWS)
-        template_github = Template(self.TEMPLATE_GITHUB)
-        # 过滤出不同类型的新闻
-        normal_news = [item for item in news if item.get("source") == "NewsAPI"]
-        github_news = [item for item in news if item.get("source") == "GitHub"]
-        # 渲染 GitHub 新闻
-        github_content = template_github.render(
-            news=github_news[:10],  # 最多发送 10 条
-            date=datetime.now().strftime("%Y-%m-%d")
-        )
-        # 渲染普通新闻
-        news_content = template_news.render(
-            news=normal_news[:10],  # 最多发送 10 条
-            date=datetime.now().strftime("%Y-%m-%d"),
-            overview=overview
-        )
-        # 合并内容
-        contents = github_content + news_content
-        return contents
 
     def _init_gmail(self):
         """初始化 Gmail 配置"""
@@ -277,10 +255,11 @@ class EmailSenderAI:
             raise
         # 分类处理新闻数据
         github_news = [n for n in news if n.get("source") == "GitHub"]
-        normal_news = [n for n in news if n.get("source") != "NewsAPI"]
+        normal_news = [n for n in news if n.get("source") != "GitHub"]
 
         # 获取AI生成内容
-        ai_data = self._generate_ai_content(news)
+        news_send = github_news[:5] + normal_news[:10]
+        ai_data = self._generate_ai_content(news_send)
         
         # 合并翻译数据
         translations = ai_data.get("translations", {})
@@ -295,7 +274,7 @@ class EmailSenderAI:
             ai_title=ai_data["title"],
             ai_overview=ai_data["overview"],
             github_news=github_news[:5],
-            normal_news=normal_news[:5]
+            normal_news=normal_news[:10]
         )
 
         msg = MIMEMultipart('alternative')

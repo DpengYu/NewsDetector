@@ -75,11 +75,11 @@ class TechNewsMonitor:
         scheduler.add_job(
             self.execute_pipeline,
             'interval',
-            hours=1,
+            hours=4,
             misfire_grace_time=60,
             max_instances=1
         )
-        logger.info("调度器已配置，任务间隔：1小时")
+        logger.info("调度器已配置，任务间隔：4小时")
         
         # 手动触发第一次任务
         logger.info("手动触发第一次任务...")
